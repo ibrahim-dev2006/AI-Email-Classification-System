@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Winnow</title>
+<meta name="description" content="Machine-learning email spam detection trained on 30,000 real emails.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f5f6f9;
+    --border: #e2e5ec;
+    --text: #1f2430;
+    --muted: #6b7180;
+    --accent: #5b7cfa;
+    --spam: #e5484d;
+    --ham: #30a46c;
+    --review: #f5a524;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161c;
+      --surface: #1c1f27;
+      --border: #2c3039;
+      --text: #e8eaf0;
+      --muted: #9aa0ae;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161c;
+    --surface: #1c1f27;
+    --border: #2c3039;
+    --text: #e8eaf0;
+    --muted: #9aa0ae;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 16px 80px; }
+
+  header { margin-bottom: 28px; }
+  h1 { font-size: 1.9rem; margin: 0 0 .4rem; letter-spacing: -.02em; }
+  .sub { color: var(--muted); margin: 0; }
+  .stats {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px;
+  }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9px; padding: 8px 14px; font-size: .85rem;
+  }
+  .stat b { display: block; font-size: 1.05rem; }
+
+  .samples { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+  .samples button {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    border-radius: 999px; padding: 7px 15px; font-size: .85rem; cursor: pointer;
+  }
+  .samples button:hover { border-color: var(--accent); color: var(--accent); }
+
+  label { display: block; font-size: .8rem; font-weight: 600; color: var(--muted);
+          text-transform: uppercase; letter-spacing: .06em; margin: 16px 0 6px; }
+  input, textarea {
+    width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; font: inherit; resize: vertical;
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { min-height: 200px; }
+
+  .go {
+    margin-top: 18px; width: 100%; background: var(--accent); color: #fff;
+    border: 0; border-radius: 10px; padding: 14px; font-size: 1rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .go:disabled { opacity: .55; cursor: not-allowed; }
+
+  #out { margin-top: 30px; }
+  .verdict {
+    border: 1px solid; border-left-width: 6px; border-radius: 12px;
+    padding: 20px 22px; margin-bottom: 18px;
+  }
+  .verdict h2 { margin: 0 0 .25rem; font-size: 1.4rem; }
+  .verdict p { margin: 0; color: var(--muted); font-size: .93rem; }
+  .v-spam { background: rgba(229,72,77,.1); border-color: rgba(229,72,77,.5); }
+  .v-ham { background: rgba(48,163,108,.1); border-color: rgba(48,163,108,.5); }
+  .v-review { background: rgba(245,165,36,.12); border-color: rgba(245,165,36,.55); }
+
+  .meter { background: var(--surface); border: 1px solid var(--border);
+           border-radius: 999px; height: 26px; overflow: hidden; position: relative; }
+  .meter i { display: block; height: 100%; border-radius: 999px; transition: width .35s ease; }
+  .scale { display: flex; justify-content: space-between; color: var(--muted);
+           font-size: .75rem; margin-top: 6px; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: .9rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+  .tag { padding: 2px 9px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .t-spam { background: rgba(229,72,77,.16); color: var(--spam); }
+  .t-ham { background: rgba(48,163,108,.16); color: var(--ham); }
+
+  h3 { font-size: 1rem; margin: 26px 0 4px; }
+  .hint { color: var(--muted); font-size: .85rem; margin: 0; }
+  .err { background: rgba(229,72,77,.1); border: 1px solid rgba(229,72,77,.45);
+         border-radius: 10px; padding: 14px 16px; color: var(--spam); }
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border);
+           color: var(--muted); font-size: .84rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Winnow</h1>
+    <p class="sub">A TF-IDF and logistic-regression model trained on 30,461 real emails from the Enron-Spam corpus.</p>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="samples" id="samples"></div>
+
+  <label for="subject">Subject</label>
+  <input id="subject" placeholder="Enter the email subject line">
+
+  <label for="body">Message body</label>
+  <textarea id="body" placeholder="Paste the full email body here"></textarea>
+
+  <button class="go" id="go">Classify email</button>
+
+  <div id="out"></div>
+
+  <footer>
+    Scored entirely server-side with the Python standard library &mdash; the model's vocabulary and
+    weights are exported to JSON, so no machine-learning libraries run at request time.
+    This is a cut-down demo; the full application adds authentication, batch scoring, an analytics
+    dashboard and a model-evaluation suite.
+  </footer>
+</div>
+
+<script>
+const SAMPLES = {
+  "Phishing": ["Urgent: Your account will be suspended",
+    "Dear Customer,\n\nWe detected unusual activity on your account. Your access will be permanently suspended within 24 hours unless you verify your identity immediately.\n\nClick here to verify: http://secure-verify-account.example.net/login\n\nYou will need your full card number, PIN and online banking password to complete verification.\n\nSecurity Department"],
+  "Prize scam": ["CONGRATULATIONS!!! YOU HAVE WON $2,500,000",
+    "ATTENTION WINNER,\n\nYour email address was selected in our international lottery draw. You have won TWO MILLION FIVE HUNDRED THOUSAND DOLLARS!\n\nTo claim your prize, send a processing fee of $250 via wire transfer along with your full name, address and bank account details.\n\nThis offer is 100% risk free and guaranteed. Act now!"],
+  "Business email": ["Re: Q3 budget review meeting",
+    "Hi Sarah,\n\nThanks for sending through the draft figures yesterday. I've reviewed the Q3 numbers and they line up with what finance forecast back in June.\n\nTwo things before Thursday's meeting:\n- The marketing line item looks about 8% over. Can you confirm whether that includes the conference spend?\n- I'd like to add a short section on headcount planning for Q4.\n\nI've attached my annotated version.\n\nBest,\nMichael"],
+  "Newsletter": ["Your weekly engineering digest",
+    "Hello,\n\nHere's what shipped this week:\n\n- The search reindexing job now runs incrementally, cutting nightly runtime from 4 hours to about 25 minutes.\n- We upgraded the Postgres cluster to 16.2. No action needed on your side.\n- Three flaky integration tests were fixed in the payments suite.\n\nYou're receiving this because you're on the platform team."]
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = v => (v * 100).toFixed(2) + "%";
+
+Object.entries(SAMPLES).forEach(([name, [subject, body]]) => {
+  const b = document.createElement("button");
+  b.textContent = name;
+  b.onclick = () => { $("subject").value = subject; $("body").value = body; $("out").innerHTML = ""; };
+  $("samples").appendChild(b);
+});
+
+fetch("/api/classify").then(r => r.json()).then(d => {
+  const m = d.metrics || {};
+  if (!m.accuracy) return;
+  $("stats").innerHTML = [
+    ["Accuracy", pct(m.accuracy)], ["Precision", pct(m.precision)],
+    ["Recall", pct(m.recall)], ["ROC AUC", m.roc_auc.toFixed(4)],
+    ["Test emails", m.test_rows.toLocaleString()]
+  ].map(([k, v]) => `<div class="stat">${k}<b>${v}</b></div>`).join("");
+}).catch(() => {});
+
+async function classify() {
+  const subject = $("subject").value, body = $("body").value;
+  if ((subject + body).trim().length < 3) {
+    $("out").innerHTML = `<div class="err">Enter an email subject or body first.</div>`;
+    return;
+  }
+
+  $("go").disabled = true;
+  $("go").textContent = "Classifying…";
+  $("out").innerHTML = "";
+
+  try {
+    const res = await fetch("/api/classify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject, body })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    render(data);
+  } catch (err) {
+    $("out").innerHTML = `<div class="err">${esc(err.message)}</div>`;
+  } finally {
+    $("go").disabled = false;
+    $("go").textContent = "Classify email";
+  }
+}
+
+function render(d) {
+  const isSpam = d.label === "spam";
+  const cls = d.decision === "review" ? "v-review" : (isSpam ? "v-spam" : "v-ham");
+  const colour = d.decision === "review" ? "var(--review)" : (isSpam ? "var(--spam)" : "var(--ham)");
+  const action = { deliver: "Deliver to inbox", review: "Route to human review", quarantine: "Quarantine as spam" }[d.decision];
+
+  const rows = (d.top_terms || []).map(t => `
+    <tr>
+      <td><code>${esc(t.term)}</code></td>
+      <td><span class="tag ${t.direction === "spam" ? "t-spam" : "t-ham"}">${t.direction}</span></td>
+      <td>${t.contribution > 0 ? "+" : ""}${t.contribution.toFixed(4)}</td>
+    </tr>`).join("");
+
+  $("out").innerHTML = `
+    <div class="verdict ${cls}">
+      <h2>${isSpam ? "Spam" : "Legitimate"} &mdash; ${action}</h2>
+      <p>Scored ${pct(d.spam_probability)} likely to be spam, against a ${d.threshold.toFixed(2)} threshold.
+         Confidence ${pct(d.confidence)}.</p>
+    </div>
+    <div class="meter"><i style="width:${(d.spam_probability * 100).toFixed(1)}%;background:${colour}"></i></div>
+    <div class="scale"><span>0% &mdash; legitimate</span><span>100% &mdash; spam</span></div>
+    ${d.note ? `<p class="hint" style="margin-top:14px">${esc(d.note)}</p>` : ""}
+    ${rows ? `<h3>Why the model decided this</h3>
+      <p class="hint">Each term's TF-IDF weight multiplied by its model coefficient. Positive pushes toward spam.</p>
+      <table><thead><tr><th>Term</th><th>Direction</th><th>Contribution</th></tr></thead>
+      <tbody>${rows}</tbody></table>` : ""}`;
+}
+
+$("go").onclick = classify;
+$("body").addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") classify();
+});
+</script>
+</body>
+</html>

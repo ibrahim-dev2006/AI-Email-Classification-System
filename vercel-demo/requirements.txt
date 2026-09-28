@@ -1,0 +1,6 @@
+# Intentionally empty.
+#
+# The serverless function scores with the Python standard library only - the model's
+# vocabulary, IDF weights and coefficients are exported to api/model.json by
+# build_model.py. Adding scikit-learn here would grow the bundle by ~165 MB and add
+# seconds to every cold start for no gain.

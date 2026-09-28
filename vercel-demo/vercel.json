@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/classify.py": {
+      "memory": 512,
+      "maxDuration": 10,
+      "includeFiles": "api/model.json"
+    }
+  }
+}

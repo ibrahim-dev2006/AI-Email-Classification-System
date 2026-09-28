@@ -1,0 +1,10 @@
+streamlit>=1.40,<2
+scikit-learn>=1.4,<2
+pandas>=2.2,<4
+numpy>=1.26,<3
+joblib>=1.3,<2
+altair>=5.0,<7
+
+# AI-assisted analysis - optional at runtime, either provider works.
+groq>=0.11
+anthropic>=0.40

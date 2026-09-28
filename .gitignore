@@ -1,0 +1,26 @@
+﻿# Secrets - never commit
+.streamlit/secrets.toml
+.env
+
+# Databases and logs generated at runtime
+data/*.db
+data/app.log
+training_run.log
+
+# Large dataset artifacts - downloaded on demand by src/dataset.py
+data/enron_spam_data.csv
+data/enron_spam_data.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
